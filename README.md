@@ -91,7 +91,7 @@ uv sync
 
 ---
 
-### 5. Open the Project in VS Code
+### 5. Open the Repository in VS Code
 
 > [!NOTE]
 > Make sure you open VS Code from the project root so it automatically detects the environment created by `uv sync`.
@@ -102,38 +102,56 @@ Launch VS Code in the project root folder:
 code .
 ```
 
-When you create notebooks (for example in a `notebooks/` folder), select the Python environment created by `uv sync` as the kernel.
+If you create a notebook to explore the data, select the Python environment created by `uv sync` as the kernel.
 
 ## How to Use This Repo
 
-1. Read the assignment brief in [project-description.md](project-description.md).
-2. Download and inspect the January 2025 Yellow Taxi dataset.
-3. Train a baseline `RandomForestRegressor` and track runs locally with MLflow.
-4. Refactor preprocessing and training logic into reusable Python modules.
-5. Build a local prediction API with FastAPI.
-6. Send a test request to the API and document the outcome in your README or PR.
+The starter implementation is in place. Begin with [notebook.ipynb](notebook.ipynb), which walks through downloading and inspecting the data, cleaning trips, training, tracking, and testing the API. The first test cell uses small synthetic data and does not download the taxi dataset.
+
+Reusable code is split by responsibility:
+
+- `src/pipeline.py` validates and prepares trips and builds the preprocessing-plus-model pipeline.
+- `src/train.py` splits data, trains the baseline, records the RMSE and parameters in MLflow, and saves the model.
+- `app/main.py` validates prediction requests and serves the saved model.
+- `tests/test_pipeline.py` contains fast checks for cleaning, model fitting, and API behavior.
+
+The downloaded raw file is stored under `data/` and ignored by Git because it is large.
+
+Run the tests from the project root:
+
+```powershell
+uv run pytest tests/test_pipeline.py -q
+```
 
 ### Working Locally
 
-Once you have implemented the project code, a typical local workflow looks like this:
+After running the notebook training cells, the fitted model is saved to `artifacts/taxi_duration_pipeline.joblib`, and MLflow runs are stored locally in the SQLite database at `mlruns/mlflow.db`.
 
-1. Train the model and log runs to the local `mlruns/` directory with MLflow.
-2. Start the tracking UI:
+1. Start the tracking UI:
 
    ```bash
-   uv run mlflow ui --backend-store-uri ./mlruns --port 5000
+   uv run mlflow ui --backend-store-uri ./mlruns/mlflow.db --port 5000
    ```
 
-3. Run the API locally:
+2. In another terminal, run the API locally:
 
    ```bash
    uv run uvicorn app.main:app --reload --port 8000
    ```
 
-4. Send a request to the API:
+3. Open `http://127.0.0.1:8000/docs` to send a request, or use PowerShell:
 
-   ```bash
-   curl -X POST http://127.0.0.1:8000/predict -H "Content-Type: application/json" -d @sample-request.json
+   ```powershell
+   $body = @{
+       trip_distance = 2.5
+       passenger_count = 1
+       pickup_hour = 9
+       pickup_weekday = 2
+       PULocationID = 161
+       DOLocationID = 236
+   } | ConvertTo-Json
+
+   Invoke-RestMethod -Uri "http://127.0.0.1:8000/predict" -Method Post -ContentType "application/json" -Body $body
    ```
 
-The `app/` package and `sample-request.json` are files you create during the project. Make the sample request match your `/predict` input schema before running the commands above.
+The response contains the predicted trip duration in minutes. Record your measured validation RMSE and discuss data-cleaning choices and limitations after running the real-data training cells.
